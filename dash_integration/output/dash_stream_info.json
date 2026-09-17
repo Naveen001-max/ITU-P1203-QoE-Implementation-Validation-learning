@@ -1,0 +1,186 @@
+{
+  "source": "https://dash.akamaized.net/envivio/EnvivioDash3/manifest.mpd",
+  "streams": [
+    {
+      "index": 0,
+      "codec_type": "video",
+      "codec_name": "h264",
+      "codec_long_name": "H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10",
+      "width": 768,
+      "height": 432,
+      "bit_rate": "1306516",
+      "sample_rate": null,
+      "channels": null,
+      "avg_frame_rate": "25/1",
+      "duration": null,
+      "id": null,
+      "metadata": {
+        "variant_bitrate": "1200000",
+        "id": "v1_257"
+      }
+    },
+    {
+      "index": 1,
+      "codec_type": "video",
+      "codec_name": "h264",
+      "codec_long_name": "H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10",
+      "width": 1024,
+      "height": 576,
+      "bit_rate": "1976256",
+      "sample_rate": null,
+      "channels": null,
+      "avg_frame_rate": "25/1",
+      "duration": null,
+      "id": null,
+      "metadata": {
+        "variant_bitrate": "1850000",
+        "id": "v2_257"
+      }
+    },
+    {
+      "index": 2,
+      "codec_type": "video",
+      "codec_name": "h264",
+      "codec_long_name": "H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10",
+      "width": 1280,
+      "height": 720,
+      "bit_rate": "3348772",
+      "sample_rate": null,
+      "channels": null,
+      "avg_frame_rate": "25/1",
+      "duration": null,
+      "id": null,
+      "metadata": {
+        "variant_bitrate": "2850000",
+        "id": "v3_257"
+      }
+    },
+    {
+      "index": 3,
+      "codec_type": "video",
+      "codec_name": "h264",
+      "codec_long_name": "H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10",
+      "width": 320,
+      "height": 180,
+      "bit_rate": "234948",
+      "sample_rate": null,
+      "channels": null,
+      "avg_frame_rate": "25/1",
+      "duration": null,
+      "id": null,
+      "metadata": {
+        "variant_bitrate": "200000",
+        "id": "v4_257"
+      }
+    },
+    {
+      "index": 4,
+      "codec_type": "video",
+      "codec_name": "h264",
+      "codec_long_name": "H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10",
+      "width": 320,
+      "height": 180,
+      "bit_rate": "346008",
+      "sample_rate": null,
+      "channels": null,
+      "avg_frame_rate": "25/1",
+      "duration": null,
+      "id": null,
+      "metadata": {
+        "variant_bitrate": "300000",
+        "id": "v5_257"
+      }
+    },
+    {
+      "index": 5,
+      "codec_type": "video",
+      "codec_name": "h264",
+      "codec_long_name": "H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10",
+      "width": 1280,
+      "height": 720,
+      "bit_rate": "4579532",
+      "sample_rate": null,
+      "channels": null,
+      "avg_frame_rate": "25/1",
+      "duration": null,
+      "id": null,
+      "metadata": {
+        "variant_bitrate": "4300000",
+        "id": "v6_257"
+      }
+    },
+    {
+      "index": 6,
+      "codec_type": "video",
+      "codec_name": "h264",
+      "codec_long_name": "H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10",
+      "width": 1920,
+      "height": 1080,
+      "bit_rate": "6138320",
+      "sample_rate": null,
+      "channels": null,
+      "avg_frame_rate": "25/1",
+      "duration": null,
+      "id": null,
+      "metadata": {
+        "variant_bitrate": "5300000",
+        "id": "v7_257"
+      }
+    },
+    {
+      "index": 7,
+      "codec_type": "video",
+      "codec_name": "h264",
+      "codec_long_name": "H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10",
+      "width": 512,
+      "height": 288,
+      "bit_rate": "561192",
+      "sample_rate": null,
+      "channels": null,
+      "avg_frame_rate": "25/1",
+      "duration": null,
+      "id": null,
+      "metadata": {
+        "variant_bitrate": "480000",
+        "id": "v8_257"
+      }
+    },
+    {
+      "index": 8,
+      "codec_type": "video",
+      "codec_name": "h264",
+      "codec_long_name": "H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10",
+      "width": 640,
+      "height": 360,
+      "bit_rate": "871876",
+      "sample_rate": null,
+      "channels": null,
+      "avg_frame_rate": "25/1",
+      "duration": null,
+      "id": null,
+      "metadata": {
+        "variant_bitrate": "750000",
+        "id": "v9_257"
+      }
+    },
+    {
+      "index": 9,
+      "codec_type": "audio",
+      "codec_name": "aac",
+      "codec_long_name": "AAC (Advanced Audio Coding)",
+      "width": null,
+      "height": null,
+      "bit_rate": "130221",
+      "sample_rate": "48000",
+      "channels": 2,
+      "avg_frame_rate": "0/0",
+      "duration": null,
+      "id": null,
+      "metadata": {
+        "variant_bitrate": "130800",
+        "id": "v4_258",
+        "language": "qaa"
+      }
+    }
+  ]
+}

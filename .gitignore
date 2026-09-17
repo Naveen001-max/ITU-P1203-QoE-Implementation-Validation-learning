@@ -28,3 +28,33 @@ test/*.cprof
 test/*.pdf
 
 .vscode
+
+# ============================================================
+# Project-specific exclusions
+# ============================================================
+
+# Large/raw datasets
+datasets/
+
+# Large media assets
+*.mp4
+*.mkv
+*.webm
+*.avi
+*.mov
+*.yuv
+
+# Environment / secrets
+.env
+.env.*
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+
+# Node.js dependencies
+node_modules/
+
+# Generated analysis/report artifacts
+*.log
+*.tmp

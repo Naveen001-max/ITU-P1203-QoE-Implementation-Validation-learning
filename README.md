@@ -1,410 +1,739 @@
-# ITU-T Rec. P.1203 Standalone Implementation
+# ITU-T P.1203 — QoE Implementation, Validation & Learning
 
-**Disclaimer:** This software is not an official ITU-T publication. It has been verified in terms of performance in relation to the subjective test databases created by the authors of this software.
+> A research and development repository documenting my study, implementation work, testing, validation, debugging, and technical learning around the ITU-T P.1203 Quality of Experience (QoE) model for adaptive audiovisual streaming.
 
-This evaluation software implements the following standards:
+---
 
-- ITU-T Rec. P.1203: Parametric bitstream-based quality assessment of progressive download and adaptive audiovisual streaming services over reliable transport
-- ITU-T Rec. P.1203.1: Parametric bitstream-based quality assessment of progressive download and adaptive audiovisual streaming services over reliable transport - Video quality estimation module
-- ITU-T Rec. P.1203.2: Parametric bitstream-based quality assessment of progressive download and adaptive audiovisual streaming services over reliable transport - Audio quality estimation module
-- ITU-T Rec. P.1203.3: Parametric bitstream-based quality assessment of progressive download and adaptive audiovisual streaming services over reliable transport - Quality integration module
+## About This Project
 
-**News:**
+This repository is my practical study of **ITU-T Recommendation P.1203**, a parametric model designed to estimate the Quality of Experience of adaptive audiovisual streaming sessions.
 
-- Version 1.10.0 switches to `uv` for Python dependencies, adds support for `videoparser-ng` for QP extraction
-- Version 1.8.0 includes the new P.1203.3 Amendment 1 Appendix 2, which enables simplified model calculation for use with the P.1204.3 model.
-- Version 1.6.0 fixes an issue with the final linearization (P.1203.3 Eq. 30) not being applied. Any calculations performed with earlier versions must be re-computed.
-- Version 1.6.1 includes support for the P.1203.3 Amendment 1 "Adjustment of the audiovisual quality" which introduces an adjustment of the audiovisual quality of ITU-T P.1203.3 for the case of very low audio quality and long stalling events.
-- Version 1.5.0 fixes an issue where mobile/handheld device scores were not correctly compensated for. Any calculations with device type "mobile" performed with versions <1.5.0 are therefore not valid and must be re-computed.
+The work goes beyond simply running an existing implementation. I studied the internal architecture of P.1203, investigated the mathematical algorithms behind its modules, worked specifically with the **P.1203.2 Audio Quality Estimation Module**, examined the P.1203.1 and P.1203.3 processing pipeline, built validation and error-analysis tooling, and investigated differences between generated outputs and reference results.
 
-**Note:** An older version of the standard, ITU-T Rec. P.1203.3 (10/2017), contained an error in Eq. (20), where the exponential was calculated as `e^(t/(T/t_3))`. The correct formula should have read `e^(((t-1)/T)/t_3))`. This software reflects the correct interpretation of the equation, namely to normalize the timestamp by the total sequence duration (and not to divide the total sequence duration by the coefficient `t_3`). This has been updated in ITU-T Rec. P.1203.3 (01/19).
+The project is also intended as a learning record: it documents what I understood, what I implemented, what failed during development, how I debugged it, and what the validation results showed.
 
-## General Description
+---
 
-The software takes the following input:
+## Project Goals
 
-* One or more audiovisual files (segments), or
-* A JSON-formatted input specification
+- Understand the architecture and mathematical foundations of ITU-T P.1203.
+- Study the interaction between audio, video, and session-level QoE estimation.
+- Work specifically with **P.1203.2 — Audio Quality Estimation**.
+- Study **P.1203.1 — Video Quality Estimation**.
+- Study **P.1203.3 — Quality Integration**.
+- Understand P.1203 operating modes 0–3.
+- Validate implementation outputs against the P.1203 reference/open dataset.
+- Develop reproducible tests and validation scripts.
+- Investigate numerical differences instead of treating every mismatch as an implementation bug.
+- Explore integration with adaptive streaming/DASH workflows.
+- Build a foundation for future research into modern audiovisual QoE models.
 
-Based on the input, it calculates per-second audio and video quality scores and an overall audiovisual integrated quality score according to the P.1203 standards.
-The Pv, Pa and Pq modules are implemented according to the following diagram.
+---
 
-![](images/p1203_blocks.png)
+# 1. Understanding ITU-T P.1203
 
-The following codecs and resolutions are supported by the offical P.1203 standard:
+P.1203 estimates streaming QoE using a modular architecture:
 
-* Audio: AAC-LC, HE-AAC, MP2, AC3
-* Video: H.264 (for other codecs, see [Extensions](#extensions))
-* Resolutions: up to 1920x1080p at 25fps
-
-When specifying the input, the software automatically decides which "mode" will be used for evaluation:
-
-* Mode 0 (metadata only); bitrate, framerate, and resolution
-* Mode 1 (frame header data only): all of mode 0 plus frame types and sizes
-* Mode 2 (bitstream data, 2%): all of mode 1 plus 2% of the QP values of all frames
-* Mode 3 (bitstream data, 100%): all of mode 1 plus QP values of all frames
-
-The higher the mode, the higher the accuracy of the prediction.
-
-Different Amendments of the official P.1203 recommendation can be enabled; please refer to the ITU-T texts for info. In particular, when using P.1203 with input scores coming from P.1204-type models and not P.1203.1, use the Amendment 1 Appendix II switch.
-
-## Requirements
-
-* [uv](https://docs.astral.sh/uv/)
-
-* Python 3.9 or higher (`uv` takes care of this!)
-
-If you want to run Mode 2 or 3:
-
-* [`videoparser-ng`](https://github.com/aveq-research/videoparser-ng) (recommended) or [`ffmpeg-debug-qp`](https://github.com/slhck/ffmpeg-debug-qp) (fallback)
-
-If you want to run Mode 3:
-
-* `ffprobe`/`ffmpeg`
-  * Download a static build from [ffmpeg](http://ffmpeg.org/download.html)
-  * Place it in your `$PATH`
-
-## Installation
-
-Install `uv` first, then download this repository and run:
-
-```bash
-uv run p1203-standalone --help
+```text
+                 Adaptive Streaming Session
+                           |
+          +----------------+----------------+
+          |                                 |
+          v                                 v
+   Video Quality                       Audio Quality
+    P.1203.1                           P.1203.2
+          |                                 |
+          v                                 v
+         O22                               O21
+          \                                 /
+           \                               /
+            +-------------+---------------+
+                          |
+                          v
+                    P.1203.3
+                Quality Integration
+                          |
+                          v
+                         O46
+                   Session-level QoE
 ```
 
-If you do not have a matching Python version, it will be installed automatically by `uv`. It will also take care of all dependencies.
+The model separates:
 
-## CLI Usage
+- **P.1203.1** — Video Quality Estimation Module
+- **P.1203.2** — Audio Quality Estimation Module
+- **P.1203.3** — Quality Integration Module
 
-```
-usage:  [-h] [-m {0,1,2,3}] [--debug] [--only-pa] [--only-pv]
-        [--print-intermediate] [--cpu-count CPU_COUNT] [--version]
-        [--accept-notice] [--amendment-1-audiovisual]
-        [--amendment-1-stalling] [--amendment-1-app-2]
-        input [input ...]
+The final integration stage considers the evolution of audiovisual quality and streaming impairments such as stalling.
 
-P.1203 standalone implementation
+---
 
-positional arguments:
-  input                 input report JSON file(s) or video file(s), or STDIN
-                        if '-', format see README
+# 2. P.1203 Operating Modes
 
-optional arguments:
-  -h, --help            show this help message and exit
-  -m {0,1,2,3}, --mode {0,1,2,3}
-                        mode to run for extraction in case video files are
-                        loaded (default: 1)
-  --debug               some debug output (default: False)
-  --only-pa             just print Pa O.21 values (default: False)
-  --only-pv             just print Pv O.22 values (default: False)
-  --print-intermediate  print intermediate O.21/O.22 values (default: False)
-  --cpu-count CPU_COUNT
-                        thread/CPU count (default: 8)
-  --version             show program's version number and exit
-  --accept-notice       accept license and acknowledgement terms (default:
-                        False)
-  --amendment-1-audiovisual
-                        enable audiovisual compensation from P.1203.3
-                        Amendment 1 (default: False)
-  --amendment-1-stalling
-                        enable stalling compensation from P.1203.3 Amendment 1
-                        (default: False)
-  --amendment-1-app-2   enable simplified model from P.1204.3 Amendment 1
-                        Appendix 2 (default: False)
+| Mode | Information level | Main idea |
+|---|---|---|
+| **Mode 0** | Metadata | Codec, bitrate, resolution, frame rate, segments and loading/stalling information |
+| **Mode 1** | Metadata + frame information | Adds frame headers/types/sizes |
+| **Mode 2** | Partial bitstream information | Adds deeper bitstream information such as QP information |
+| **Mode 3** | Full bitstream | Uses full bitstream-level information |
+
+These modes illustrate how P.1203 can estimate quality with progressively richer information about the streamed media.
+
+---
+
+# 3. P.1203.2 — Audio Quality Estimation
+
+A major focus of this project was understanding and working with the audio-quality module.
+
+The coding degradation is calculated using:
+
+```text
+QcodA = a1A × exp(a2A × Bitrate) + a3A
 ```
 
-The program will output a valid JSON report with the following structure:
+Audio quality is then:
 
-```jsonc
-{
-  "path/to/first/input/file": {
-    "O21": [
-      // per-second audio quality scores (only if --print-intermediate was used)
-    ],
-    "O22": [
-      // per-second video quality scores (only if --print-intermediate was used)
-    ],
-    "O23": 5.0,     // stalling quality
-    "O34": [
-      // per-second audiovisual quality scores
-    ],
-    "O35": 4.63,    // audiovisual quality score
-    "O46": 4.92,    // overall quality score
-    "mode": 0,      // used mode, either 0, 1, or 3
-    "streamId": 42  // currently unused
-  },
-  "path/to/second/input/file": {
-    ...
-  }, ...
-}
+```text
+QA = 100 − QcodA
 ```
 
-## Usage Examples
+The resulting quality value is converted into an estimated Mean Opinion Score:
 
-These examples assume direct usage from the source folder with `uv run`. If you installed the tool via `pip` or `uv tool install`, you can just call `p1203-standalone` directly.
-
-```bash
-uv run p1203-standalone examples/mode0.json
+```text
+O21 = MOSfromR(QA)
 ```
 
-Should output:
+The MOS conversion used by the model is:
 
-```jsonc
-{
- "examples/mode0.json": {
-  "O23": 5.0,
-  "O34": [5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0],
-  "O35": 5.0,
-  "O46": 4.9209299083625,
-  "mode": 0,
-  "streamId": 42
- }
-}
+```text
+MOS = 1.05 + (4.9 − 1.05)
+      × [Q/100 + Q(Q − 60)(100 − Q)(0.000007)]
 ```
 
-You can run video and audio-only evaluation, too:
+with the result bounded to:
 
-```bash
-uv run p1203-standalone examples/mode1.json --only-pv
+```text
+1.05 ≤ MOS ≤ 4.9
 ```
 
-```jsonc
-{
- "examples/mode1.json": {
-  "video": {
-   "O22": [3.6388673743323765, 3.6388673743323765, 3.6388673743323765, 3.6388673743323765, 3.6388673743323765, 3.9788927218578936, 3.9788927218578936, 3.9788927218578936, 3.9788927218578936, 3.9788927218578936, 4.391663023866462, 4.391663023866462, 4.391663023866462, 4.391663023866462, 4.391663023866462, 4.404242168691321, 4.404242168691321, 4.404242168691321, 4.404242168691321],
-   "mode": 1,
-   "streamId": 42
-  }
- }
-}
+For AAC-LC, the coefficients studied in this implementation are:
+
+```text
+a1 = 100
+a2 = -0.05
+a3 = 14.60
 ```
 
-You can run it on video files directly:
+Conceptually:
 
-```bash
-uv run p1203-standalone segment-1.mp4 segment-2.mp4 --mode 1
+```text
+Audio Codec + Bitrate
+        |
+        v
+   Coding Quality
+        |
+        v
+    QA (0–100)
+        |
+        v
+   MOSfromR()
+        |
+        v
+       O21
 ```
 
-## JSON Input Format
+---
 
-The input JSON file (see files in `examples`) must have at least the following data:
+# 4. P.1203.1 — Video Quality Estimation
 
-```jsonc
-{
-"I13": {              // video input information
-    "streamId": 42,   // unique identifier for the stream
-    "segments": [
-      // list of video segments, see below
-    ]
-  }
-}
+I also studied the video-quality processing chain and how the model converts video characteristics into a quality estimate.
+
+Important concepts include:
+
+- bitrate
+- coding resolution
+- display resolution
+- frame rate
+- quantization
+- frame-size information
+- I-frame/non-I-frame characteristics
+- spatial upscaling
+- temporal impairment
+
+The processing eventually produces:
+
+```text
+O22 = Video Quality MOS
 ```
 
-The following keys and data are optional:
+An important concept learned during this work is that the internal `quant` parameter should not automatically be interpreted as the actual codec QP in every mode. In metadata-based modes it acts as an internal quality/compression parameter derived from available stream information.
 
-```jsonc
-{
-  "IGen": {                         // Generic input information
-    "displaySize": "1920x1080",   // display resolution in pixels, given as `<width>x<height>`
-    "device": "pc",               // pc, handheld, or mobile
-    "viewingDistance": 0,         // not used
-  },
-  "I11": {              // Audio input information
-    "streamId": 42,   // unique identifier for the stream
-    "segments": [
-      // list of audio segments, see below
-    ]
-  },
-  "I23": {              // Stalling input information
-    "streamId": 42,   // unique identifier for the stream
-    "stalling": [
-      // pair of `[start timestamp, duration]` for each stalling event
-      // where the start timestamp is measured in media time
-    ]
-  }
-}
+The model estimates degradation components such as:
+
+```text
+Dq = Quantization / compression degradation
+Du = Upscaling degradation
+Dt = Temporal degradation
 ```
 
-Note:
+and combines them on a common quality/degradation scale before converting the final result back to MOS.
 
-- All timestamps are in media time
-- All timestamps are given as seconds (with optional fractional seconds)
+---
 
-As an alternative to giving segment information, the input can also be a list of O.21 (audio) and O.22 (video) quality scores, e.g. from other calculations. See `examples/existing_O21_O22.json` for an example.
+# 5. Why P.1203 Converts MOS Back to Degradation
 
-### JSON Audio Input Format
+One important conceptual point investigated in this project was why the model does not simply add or subtract multiple MOS values.
 
-For audio, `segments` contains a list of audio segments to be analyzed. Each segment is defined by the following dictionary:
+MOS is nonlinear.
 
-```jsonc
-{
-  "codec": "aaclc",   // audio codec, any of [mp2, ac3, aaclc, heaac]
-  "start": 0.0,       // media start timestamp
-  "duration": 5.0,    // duration
-  "bitrate": 192.0    // bitrate in kBit/s
-}
+Therefore, the model uses a common degradation/quality representation:
+
+```text
+MOS
+ ↓
+RfromMOS()
+ ↓
+0–100 quality/degradation representation
+ ↓
+Combine impairments
+ ↓
+MOSfromR()
+ ↓
+Final MOS
 ```
 
-### JSON Video Input Format
+For video, this allows compression, scaling, and temporal impairments to be combined consistently.
 
-For video, `segments` contains a list of video segments to be analyzed. Each segment is defined by the following dictionary, depending on the mode:
+This was an important lesson in understanding why a mathematical QoE model may internally use representations that are different from its final user-facing MOS output.
 
-```jsonc
-{
-  "codec": "h264",       // only "h264" supported in standard
-  "start": 0.0,          // media start timestamp in s
-  "duration": 5.0,       // duration in s
-  "resolution": "1920x1080",    // resolution as "widthxheight", e.g. "1920x1080"
-  "bitrate": 5000,       // bitrate in kBit/s
-  "fps": 24,             // framerate
-  "representation": 1,   // representation ID / media quality level ID (optional)
-  "frames": [
-    // optional list of frames
-    // when present, will enable modes 1, 2 or 3
-  ]
-}
-```
+---
 
-The `representation` key is equal to the *Media Quality Level* ID as defined in P.1203. If present, switching the representation will flush the measurement window as defined in Clause 7.4 of the standard. If not, the tuple bitrate, framerate, and resolution are considered to be a unique identifier of the representation.
+# 6. P.1203.3 — Quality Integration
 
-The list of frames contains every frame in the sequence, in decoding order. The object contents depend on the mode, and the software figures out automatically which mode to calculate:
+P.1203.3 combines audio and video quality into an integrated audiovisual quality representation.
 
-```jsonc
-{
-  "frameType": "I",     // I/Non-I, or I/P/B
-  "frameSize": 18102,   // in Bytes
-  "qpValues": [
-    // optional list of QP values in frame, one per macroblock
-    // when present, will enable mode 3 (mode 2 will never be enabled automatically)
-  ]
-}
-```
+The one-second audiovisual quality is calculated using:
 
-## Advanced: Input Generation with `ffprobe`
-
-If you have `ffprobe` installed, you can generate the required input file from one or more video segments by using the `itu_p1203/extractor.py` script. For example:
-
-```bash
-uv run python -m itu_p1203.extractor -m 1 /path/to/segment1.mp4 /path/to/segment2.mp4 > mode1.json
-```
-
-This is what the `itu_p1203` script does in the background if you call it with a video file as argument.
-
-For extracting Mode 2/3 values, you need a QP extraction tool. The extractor supports two options:
-
-1. **Recommended:** [`video-parser`](https://github.com/aveq-research/videoparser-ng) from videoparser-ng. Install it and ensure the `video-parser` binary is in your `$PATH`.
-
-2. **Fallback:** [`ffmpeg-debug-qp`](https://github.com/slhck/ffmpeg-debug-qp). If `video-parser` is not found, the extractor will fall back to this tool.
-
-Then you can extract the QP values directly:
-
-```bash
-uv run python -m itu_p1203.extractor --use-average -m 3 /path/to/segment1.mp4 /path/to/segment2.mp4 > mode3.json
-```
-
-**Note:** This procedure is experimental and may not work with all input video files, hence cannot be used to validate an existing implementation.
-
-See `itu_p1203/extractor.py -h` for more info.
-
-## API Usage
-
-You can use the classes contained in this module to programmatically call the model in your test application. For example:
-
-```python
-from itu_p1203 import P1203Standalone
-from itu_p1203 import P1203Pq
-from itu_p1203 import P1203Pa
-from itu_p1203 import P1203Pv
-
-P1203Standalone(input_json).calculate_complete()
-
-P1203Pa(segments).calculate()
-
-P1203Pq(audio_scores, video_scores).calculate()
-
-P1203Pv.video_model_function_mode0(
-  coding_res=1920*1080,
-  display_res=1920*1080,
-  bitrate_kbps_segment_size=1500,
-  framerate=24
+```text
+O34'_t =
+clip(
+    av1
+    + av2 × O21_t
+    + av3 × O22_t
+    + av4 × O21_t × O22_t,
+    1,
+    5
 )
 ```
 
-For more, see the example usage in `itu_p1203/__main__.py`.
+The resulting sequence is then used for longer-term quality estimation.
 
-## Extensions
+The model also accounts for temporal effects and stalling.
 
-For evaluation of non-standard codecs (H.265/HEVC or VP9), you can use the [extension provided by TU Ilmenau](https://github.com/Telecommunication-Telemedia-Assessment/itu-p1203-codecextension) as a drop-in replacement.
+---
 
-It is also possible to use the [AVQBits|M0 model from TU Ilmenau](https://github.com/Telecommunication-Telemedia-Assessment/p1204_3_extensions) for the Pv component to generate the O.22 video quality scores, then use them as input to the P.1203.3 quality integration module. This has support for HEVC and VP9 codecs up to 4K resolution and 60fps.
+# 7. Stalling and Session-Level QoE
 
-For a more accurate bitstream model, the [P.1204.3 model](https://github.com/Telecommunication-Telemedia-Assessment/bitstream_mode3_p1204_3) can be used, again to generate O.22 scores for input to P.1203.3. Here, Amendment 1 Appendix 2 should be enabled for P.1203.
+The stalling influence is represented through:
 
-## Acknowledgement
+```text
+SI =
+exp(−numStalls / s1)
+× exp(−totalStallLength / (T × s2))
+× exp(−avgStallInterval / s3)
+```
 
-If you use this software, or derivates of it, in your research, you must:
+and:
 
-1. Include the link to this repository
-2. Cite the following publications:
+```text
+O23 = 1 + 4 × SI
+```
 
-   Raake, A., Garcia, M.-N., Robitza, W., List, P., Göring, S., Feiten, B. (2017). A bitstream-based, scalable video-quality model for HTTP adaptive streaming: ITU-T P.1203.1. In 2017 Ninth International Conference on Quality of Multimedia Experience (QoMEX). Erfurt.
+This is one reason P.1203 differs from video-only quality metrics: it considers playback/session experience rather than only visual quality.
 
-        @inproceedings{Raake2017,
-        address = {Erfurt},
-        author = {Raake, Alexander and Garcia, Marie-Neige and Robitza, Werner and List, Peter and Göring, Steve and Feiten, Bernhard},
-        booktitle = {Ninth International Conference on Quality of Multimedia Experience (QoMEX)},
-        doi = {10.1109/QoMEX.2017.7965631},
-        isbn = {978-1-5386-4024-1},
-        month = {May},
-        publisher = {IEEE},
-        title = {{A bitstream-based, scalable video-quality model for HTTP adaptive streaming: ITU-T P.1203.1}},
-        url = {http://ieeexplore.ieee.org/document/7965631/},
-        year = {2017}
-        }
+---
 
-    Robitza, W., Göring, S., Raake, A., Lindegren, D., Heikkilä, G., Gustafsson, J., List, P., Feiten, B., Wüstenhagen, U., Garcia, M.-N., Yamagishi, K., Broom, S. (2018). HTTP Adaptive Streaming QoE Estimation with ITU-T Rec. P.1203 – Open Databases and Software. In 9th ACM Multimedia Systems Conference. Amsterdam.
+# 8. Random Forest Component
 
-        @inproceedings{Robitza2018,
-        address = {Amsterdam},
-        author = {Robitza, Werner and Göring, Steve and Raake, Alexander and Lindegren, David and Heikkilä, Gunnar and Gustafsson, Jörgen and List, Peter and Feiten, Bernhard and Wüstenhagen, Ulf and Garcia, Marie-Neige and Yamagishi, Kazuhisa and Broom, Simon},
-        booktitle = {9th ACM Multimedia Systems Conference},
-        doi = {10.1145/3204949.3208124},
-        isbn = {9781450351928},
-        title = {{HTTP Adaptive Streaming QoE Estimation with ITU-T Rec. P.1203 – Open Databases and Software}},
-        year = {2018}
-        }
+Another important part of the study was the machine-learning component inside P.1203.3.
 
-Development of this software has been partly funded by the European Union’s Horizon 2020 research and innovation programme under the Marie Skłodowska-Curie grant agreement No 643072, Project [QoE-Net](http://www.qoenet-itn.eu/).
+The model uses a **Random Forest consisting of 20 decision trees**, with the tree predictions averaged to obtain the RF prediction.
 
-## License
+Conceptually:
 
-Copyright 2017-2025 Deutsche Telekom AG, Technische Universität Berlin, Technische Universität Ilmenau, LM Ericsson, Werner Robitza
+```text
+Session Features
+      |
+      v
++-----+-----+-----+-----+
+| Tree 1    | ... | Tree 20
++-----+-----+-----+-----+
+      |
+      v
+Average predictions
+      |
+      v
+RFprediction
+```
 
-Permission is hereby granted, free of charge, to use the software for non-commercial research purposes.
+The RF prediction is combined with the analytical/session-quality component:
 
-Any other use of the software, including commercial use, merging, publishing, distributing, sublicensing, and/or selling copies of the Software, is forbidden.
+```text
+O46_temp =
+    0.75 × [1 + (O35 − 1) × SI]
+    + 0.25 × RFprediction
+```
 
-For a commercial license, you must contact the respective rights holders of the standards ITU-T Rec. P.1203, ITU-T Rec. P.1203.1, ITU-T Rec. P.1203.2, and ITU-T Rec. P.1203.3. See https://www.itu.int/en/ITU-T/ipr/Pages/default.aspx for more information.
+This demonstrated how a standardized QoE model can combine **analytical equations with a supervised machine-learning ensemble**.
 
-NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE GRANTED BY THIS LICENSE. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+---
 
-## Authors
+# 9. O46 Final Linearization
 
-Main developers:
+A significant part of the validation investigation concerned the final O46 calculation.
 
-* Werner Robitza, AVEQ GmbH (formerly Technische Universität Ilmenau)
-* Steve Göring, Technische Universität Ilmenau
+The final calibration is:
 
-Contributors:
+```text
+O46 =
+0.02833052
++
+0.98117059 × O46_temp
+```
 
-* Marie-Neige Garcia, Technische Universität Berlin
-* Alexander Raake, Technische Universität Ilmenau
-* Marcel Schmalzl, Technische Universität Ilmenau
-* Peter List, Deutsche Telekom AG
-* Bernhard Feiten, Deutsche Telekom AG
-* Ulf Wüstenhagen, Deutsche Telekom AG
-* Jörgen Gustafsson, LM Ericsson
-* Gunnar Heikkilä, LM Ericsson
-* David Lindegren, LM Ericsson
-* Junaid Shaikh, LM Ericsson
+Therefore:
+
+```text
+O21 ───────────────┐
+                   |
+O22 ───────────────┤
+                   v
+              O34 / O35
+                   |
+                   +------> Stalling information
+                   |
+                   +------> Random Forest
+                   |
+                   v
+               O46_temp
+                   |
+                   v
+              Final Eq. 30
+                   |
+                   v
+                  O46
+```
+
+A key learning outcome was that **the final linearization is not the same thing as the 75/25 analytical/RF weighting**.
+
+The 75/25 weighting produces `O46_temp`.
+
+Equation 30 performs the final linear calibration.
+
+---
+
+# 10. Validation Work
+
+A major part of the project was validating the implementation against the P.1203 reference/open dataset.
+
+The validation covered:
+
+```text
+4 modes × 314 cases
+=
+1,256 validation cases
+```
+
+All cases were successfully processed:
+
+```text
+1,256 / 1,256
+```
+
+The validation framework compares generated outputs with corresponding reference outputs and calculates numerical error metrics.
+
+---
+
+# 11. Validation Results
+
+| Metric | Result |
+|---|---:|
+| Total cases | **1,256** |
+| Successfully processed | **1,256 / 1,256** |
+| O34 reference agreement | **Exact** |
+| O35 reference agreement | **Exact** |
+| O23 MAE | **≈ 0.0079** |
+| O46 MAE | **≈ 0.036–0.042**, depending on mode |
+
+O34 and O35 matching the reference outputs provided strong evidence that the core integration stages were functioning consistently with the reference cases.
+
+O23 also showed a small mean absolute error.
+
+O46 showed a larger but still relatively small systematic residual.
+
+---
+
+# 12. O46 Error Investigation
+
+Instead of treating the O46 difference as an unexplained error, I investigated the calculation path and implementation/reference version relationship.
+
+The investigation showed that the reference outputs were associated with an earlier P.1203 implementation/reference version, while the current implementation includes the later final linearization represented by Equation 30.
+
+This explains why O46 results can differ even when the preceding processing stages are consistent.
+
+The main lesson was:
+
+> A numerical mismatch does not automatically mean that the implementation is fundamentally wrong. Version differences, calibration changes, and reference-generation procedures must also be considered.
+
+---
+
+# 13. Testing and Development
+
+The project includes additional tests and experiments around the P.1203 implementation.
+
+Examples include:
+
+```text
+p1203_core_tests/
+test_p1203_2_real.py
+```
+
+and example inputs such as:
+
+```text
+examples/constant_aaclc_128.json
+examples/p1203_2_20sec.json
+```
+
+I also used command-line execution and example sessions to inspect model outputs and verify individual processing stages.
+
+---
+
+# 14. DASH Integration Experiments
+
+The project also contains exploratory work around adaptive streaming and DASH:
+
+```text
+dash_integration/
+dash_player/
+```
+
+The purpose is to connect the QoE model with a more realistic adaptive-streaming workflow rather than treating the model only as an isolated mathematical implementation.
+
+---
+
+# 15. Technical Learning
+
+### QoE Modelling
+
+- Difference between Quality of Experience and raw media quality.
+- Why audiovisual QoE needs more than a video-quality score.
+- How temporal playback events influence perceived experience.
+- Why session-level QoE differs from frame-level/video-level quality.
+
+### Audio Quality
+
+- Codec-specific quality estimation.
+- Bitrate-dependent quality degradation.
+- Nonlinear MOS conversion.
+- P.1203.2 processing flow.
+
+### Video Quality
+
+- Bitrate, resolution and frame-rate relationships.
+- Quantization-related quality estimation.
+- Spatial scaling impairment.
+- Temporal impairment modelling.
+- Mode-dependent video information.
+
+### Machine Learning
+
+- Random Forest regression inside a standardized QoE model.
+- Feature-based prediction.
+- Ensemble averaging.
+- Combining ML predictions with analytical equations.
+
+### Software Engineering
+
+- Python virtual environments.
+- Dependency management.
+- Unit and integration testing.
+- CLI-based execution.
+- Debugging numerical discrepancies.
+- Building validation scripts.
+- Organizing reproducible experiments.
+
+### Research Methodology
+
+- Working from a technical standard.
+- Translating mathematical specifications into executable logic.
+- Comparing implementation outputs with reference outputs.
+- Using MAE and other numerical error measures.
+- Investigating systematic residuals.
+- Distinguishing implementation defects from version/calibration differences.
+- Documenting limitations instead of overclaiming results.
+
+---
+
+# 16. What This Project Taught Me About Model Validation
+
+A central lesson from this project is that validation is not simply:
+
+```text
+Run model
+   ↓
+Compare number
+   ↓
+Different → bug
+```
+
+A stronger validation workflow is:
+
+```text
+Reference Specification
+        ↓
+Implementation
+        ↓
+Controlled Test Cases
+        ↓
+Reference Outputs
+        ↓
+Numerical Comparison
+        ↓
+Error Pattern Analysis
+        ↓
+Version / Formula / Parameter Investigation
+        ↓
+Technical Conclusion
+```
+
+This approach was particularly important for understanding the O46 residual.
+
+---
+
+# 17. Current Research Direction
+
+The project began primarily as an implementation and learning exercise around P.1203 and is now developing toward a broader QoE research direction.
+
+Areas being investigated include:
+
+- Modern streaming video-quality models.
+- ITU-T P.1204 family.
+- Netflix VMAF and related video-quality tooling.
+- Modern audiovisual/session-level QoE modelling.
+- Comparison between standardized QoE approaches and industry video-quality tools.
+- Potential integration of newer video-quality estimators into a session-level QoE architecture.
+
+The objective is not simply to replace P.1203, but to understand how modern video-quality technologies can coexist with or extend session-level audiovisual QoE estimation.
+
+---
+
+# 18. Limitations
+
+This repository should be interpreted as a research, learning and implementation project.
+
+Important limitations include:
+
+- Reference datasets and implementation versions may not always correspond to the latest specification revision.
+- O46 comparisons can be affected by reference-version/calibration differences.
+- Numerical agreement on one validation dataset does not by itself prove universal real-world accuracy.
+- P.1203 is a parametric model with a defined scope and assumptions.
+- Modern streaming systems can introduce codecs, protocols, devices and perceptual effects beyond the original model's design scope.
+
+---
+
+# 19. Future Work
+
+### External Validation
+
+Evaluate P.1203 against independent publicly available audiovisual QoE datasets containing appropriate streaming/session information.
+
+### Modern Video-Quality Comparison
+
+Compare P.1203 video-quality outputs with:
+
+- ITU-T P.1204 family models
+- Netflix VMAF
+- SSIM / MS-SSIM
+- PSNR
+- selected modern learned VQA models
+
+### Session-Level Research
+
+Investigate whether a modern session QoE framework can combine:
+
+```text
+Audio Quality
+      +
+Modern Video Quality
+      +
+Startup Delay
+      +
+Rebuffering
+      +
+Quality Switching
+      +
+Session Context
+      ↓
+Modern Session QoE
+```
+
+### Reproducible Evaluation
+
+Build a standardized evaluation pipeline producing:
+
+- MSE
+- RMSE
+- MAE
+- correlation metrics
+- QoE/MOS comparisons
+- per-case error
+- per-mode analysis
+- visualizations
+- reproducible result files
+
+---
+
+# 20. Repository Structure
+
+```text
+ITU-P1203-QoE-Implementation-Validation-learning/
+│
+├── itu_p1203/
+│   └── P.1203 implementation
+│
+├── examples/
+│   └── reproducible example inputs
+│
+├── p1203_core_tests/
+│   └── core tests
+│
+├── validation/
+│   └── validation resources and results
+│
+├── dash_integration/
+│   └── DASH integration experiments
+│
+├── dash_player/
+│   └── DASH player experiments
+│
+├── test_p1203_2_real.py
+│   └── P.1203.2 testing
+│
+├── validate_p1203_dataset.py
+│   └── reference dataset validation
+│
+├── o46_error_analysis.py
+│   └── O46 numerical/error investigation
+│
+├── pyproject.toml
+├── README.md
+└── LICENSE
+```
+
+Large datasets, raw media assets, virtual environments and generated files should not be committed unnecessarily.
+
+---
+
+# 21. Reproducibility
+
+The project is intended to be reproducible through the included Python environment configuration, examples and validation scripts.
+
+Typical setup:
+
+```bash
+git clone <repository-url>
+cd ITU-P1203-QoE-Implementation-Validation-learning
+
+python -m venv .venv
+```
+
+Activate the environment and install dependencies according to the project configuration.
+
+Validation can then be performed using the included validation tooling.
+
+---
+
+# 22. Relationship to the Original P.1203 Implementation
+
+This repository is based on the official **ITU-T P.1203 reference implementation**.
+
+The original implementation and its associated work remain attributed to their respective authors and contributors.
+
+This repository documents my own:
+
+- study
+- implementation work
+- testing
+- validation
+- experiments
+- debugging
+- error analysis
+- technical interpretation
+- research direction
+
+The purpose is to learn from, evaluate, and build around the P.1203 implementation—not to claim authorship of the original standard or upstream implementation.
+
+---
+
+# 23. References
+
+### ITU-T
+
+- ITU-T Recommendation P.1203 — Parametric bitstream-based quality assessment of progressive download and adaptive audiovisual streaming services.
+- ITU-T Recommendation P.1203.1 — Video Quality Estimation Module.
+- ITU-T Recommendation P.1203.2 — Audio Quality Estimation Module.
+- ITU-T Recommendation P.1203.3 — Quality Integration Module.
+- ITU-T Recommendation P.1204 family — Streaming video quality assessment.
+
+### Upstream Implementation
+
+Official P.1203 implementation:
+
+```text
+https://github.com/itu-p1203/itu-p1203
+```
+
+### Validation Dataset
+
+Official P.1203 open dataset:
+
+```text
+https://github.com/itu-p1203/open-dataset
+```
+
+### Industry Video Quality
+
+Netflix VMAF:
+
+```text
+https://github.com/Netflix/vmaf
+```
+
+---
+
+# 24. Acknowledgements
+
+This work builds upon the ITU-T P.1203 recommendation, its contributors, and the publicly available P.1203 implementation and validation resources.
+
+The project is maintained as a personal research and learning repository documenting my technical work with audiovisual QoE modelling.
+
+---
+
+## Project Status
+
+**Active Research & Development**
+
+Current work includes:
+
+- P.1203 architecture study
+- P.1203.1 investigation
+- P.1203.2 implementation/testing
+- P.1203.3 investigation
+- Reference-dataset validation
+- 1,256-case validation run
+- O46 error analysis
+- DASH integration experiments
+- Research into newer audiovisual/video QoE approaches
+
+Further work will focus on independent validation and comparison with modern QoE/video-quality technologies.

@@ -1,0 +1,13 @@
+{
+  "I11": {
+    "streamId": 1,
+    "segments": [
+      {
+        "codec": "aaclc",
+        "start": 0.0,
+        "duration": 20.0,
+        "bitrate": 128.0
+      }
+    ]
+  }
+}

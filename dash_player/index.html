@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Real DASH → P.1203 Trace</title>
+
+    <script src="./node_modules/dashjs/dist/modern/umd/dash.all.min.js"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 30px;
+        }
+
+        video {
+            width: 900px;
+            max-width: 100%;
+            background: black;
+        }
+
+        pre {
+            padding: 15px;
+            background: #f4f4f4;
+            overflow: auto;
+            max-height: 500px;
+        }
+
+        button {
+            margin: 8px 5px 8px 0;
+            padding: 8px 14px;
+        }
+    </style>
+</head>
+
+<body>
+
+<h1>Real MPEG-DASH → P.1203 Trace</h1>
+
+<video id="videoPlayer" controls></video>
+
+<div>
+    <button onclick="downloadTrace()">Download DASH Trace</button>
+    <button onclick="clearTrace()">Clear Trace</button>
+</div>
+
+<h2>Live DASH Trace</h2>
+
+<pre id="log"></pre>
+
+<script>
+
+const MPD_URL =
+    "https://dash.akamaized.net/envivio/EnvivioDash3/manifest.mpd";
+
+const video =
+    document.getElementById("videoPlayer");
+
+const logElement =
+    document.getElementById("log");
+
+const trace = [];
+
+function log(message) {
+    console.log(message);
+    logElement.textContent += message + "\n";
+}
+
+function addTrace(event) {
+    trace.push(event);
+    log(JSON.stringify(event, null, 2));
+}
+
+
+/*
+ * DASH.js 5.x representation lookup.
+ *
+ * IMPORTANT:
+ * dash.js 5.x uses:
+ *
+ *   getRepresentationsByType()
+ *   getCurrentRepresentationForType()
+ *
+ * instead of the old:
+ *
+ *   getBitrateInfoListFor()
+ *   getQualityFor()
+ */
+
+function getCurrentVideoRepresentation() {
+
+    try {
+
+        const representation =
+            player.getCurrentRepresentationForType("video");
+
+        if (!representation) {
+            return null;
+        }
+
+        return representation;
+
+    } catch (error) {
+
+        log(
+            "Representation lookup warning: " +
+            error.message
+        );
+
+        return null;
+    }
+}
+
+
+function getRepresentationInfo() {
+
+    const representation =
+        getCurrentVideoRepresentation();
+
+    if (!representation) {
+        return {
+            quality_index: null,
+            bitrate: null,
+            width: null,
+            height: null,
+            representation_id: null,
+            codec: null
+        };
+    }
+
+    return {
+
+        quality_index:
+            representation.index ?? null,
+
+        bitrate:
+            representation.bandwidth ??
+            representation.bitrate ??
+            null,
+
+        width:
+            representation.width ?? null,
+
+        height:
+            representation.height ?? null,
+
+        representation_id:
+            representation.id ?? null,
+
+        codec:
+            representation.codec ??
+            representation.mimeType ??
+            null
+    };
+}
+
+
+const player =
+    dashjs.MediaPlayer().create();
+
+
+player.on(
+    dashjs.MediaPlayer.events.ERROR,
+    function (event) {
+
+        log(
+            "DASH ERROR: " +
+            JSON.stringify(
+                event.error || event,
+                null,
+                2
+            )
+        );
+    }
+);
+
+
+player.on(
+    dashjs.MediaPlayer.events.STREAM_INITIALIZED,
+    function () {
+
+        log("DASH stream initialized");
+
+        log(
+            "Video duration: " +
+            video.duration +
+            " seconds"
+        );
+
+        try {
+
+            const representations =
+                player.getRepresentationsByType("video");
+
+            log(
+                "Available DASH representations:"
+            );
+
+            representations.forEach(
+                function (representation) {
+
+                    log(
+                        JSON.stringify({
+                            index:
+                                representation.index,
+                            id:
+                                representation.id,
+                            bandwidth:
+                                representation.bandwidth,
+                            width:
+                                representation.width,
+                            height:
+                                representation.height,
+                            codec:
+                                representation.codec
+                        })
+                    );
+                }
+            );
+
+        } catch (error) {
+
+            log(
+                "Representation list error: " +
+                error.message
+            );
+        }
+
+        log(
+            "Waiting for actual DASH representation changes..."
+        );
+    }
+);
+
+
+/*
+ * Record requested representation.
+ */
+
+player.on(
+    dashjs.MediaPlayer.events.QUALITY_CHANGE_REQUESTED,
+    function (event) {
+
+        console.log(
+            "QUALITY_CHANGE_REQUESTED EVENT:",
+            event
+        );
+
+        if (event.mediaType !== "video") {
+            return;
+        }
+
+        const representation =
+            event.newRepresentation;
+
+        if (!representation) {
+            console.warn(
+                "QUALITY_CHANGE_REQUESTED has no newRepresentation",
+                event
+            );
+            return;
+        }
+
+        console.log(
+            "REQUESTED REPRESENTATION:",
+            representation
+        );
+
+        addTrace({
+
+            event:
+                "QUALITY_CHANGE_REQUESTED",
+
+            playback_time:
+                video.currentTime,
+
+            quality_index:
+                representation.absoluteIndex ??
+                representation.index ??
+                null,
+
+            bitrate:
+                representation.bandwidth ??
+                representation.bitrate ??
+                null,
+
+            width:
+                representation.width ??
+                null,
+
+            height:
+                representation.height ??
+                null,
+
+            representation_id:
+                representation.id ??
+                null,
+
+            codec:
+                representation.codec ??
+                representation.mimeType ??
+                null,
+
+            timestamp:
+                new Date().toISOString()
+        });
+    }
+);
+
+
+/*
+ * Record representation that was actually rendered.
+ */
+
+player.on(
+    dashjs.MediaPlayer.events.QUALITY_CHANGE_RENDERED,
+    function (event) {
+
+        if (event.mediaType !== "video") {
+            return;
+        }
+
+        /*
+         * Wait until dash.js has actually switched,
+         * then ask for the CURRENT representation.
+         */
+
+        const info =
+            getRepresentationInfo();
+
+        addTrace({
+
+            event:
+                "QUALITY_CHANGE_RENDERED",
+
+            playback_time:
+                video.currentTime,
+
+            quality_index:
+                info.quality_index,
+
+            bitrate:
+                info.bitrate,
+
+            width:
+                info.width,
+
+            height:
+                info.height,
+
+            representation_id:
+                info.representation_id,
+
+            codec:
+                info.codec,
+
+            timestamp:
+                new Date().toISOString()
+        });
+    }
+);
+
+
+/*
+ * Playback timeline.
+ */
+
+let lastPlaybackTraceTime = -1;
+
+video.addEventListener(
+    "timeupdate",
+    function () {
+
+        const current = video.currentTime;
+
+        /*
+         * Record playback approximately once per second.
+         */
+        if (
+            current - lastPlaybackTraceTime >= 1.0
+        ) {
+
+            const info =
+                getRepresentationInfo();
+
+            addTrace({
+
+                event:
+                    "PLAYBACK",
+
+                playback_time:
+                    current,
+
+                quality_index:
+                    info.quality_index,
+
+                bitrate:
+                    info.bitrate,
+
+                width:
+                    info.width,
+
+                height:
+                    info.height,
+
+                representation_id:
+                    info.representation_id,
+
+                codec:
+                    info.codec,
+
+                timestamp:
+                    new Date().toISOString()
+            });
+
+            lastPlaybackTraceTime = current;
+        }
+    }
+);
+
+/*
+ * Download the real browser playback trace.
+ */
+
+async function downloadTrace() {
+
+    const output = {
+
+        source:
+            MPD_URL,
+
+        duration:
+            video.duration,
+
+        captured_at:
+            new Date().toISOString(),
+
+        trace:
+            trace
+    };
+
+    /*
+     * Send the actual browser playback trace
+     * directly to the local DASH -> P.1203 bridge.
+     */
+
+    try {
+
+        log(
+            "Sending DASH trace to P.1203..."
+        );
+
+        const response =
+            await fetch(
+                "http://127.0.0.1:8765/trace",
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body:
+                        JSON.stringify(output)
+                }
+            );
+
+        const result =
+            await response.json();
+
+        if (!response.ok) {
+
+            throw new Error(
+                result.error ||
+                "P.1203 bridge failed"
+            );
+        }
+
+        log(
+            "P.1203 calculation complete."
+        );
+
+        log(
+            JSON.stringify(
+                result,
+                null,
+                2
+            )
+        );
+
+        /*
+         * Keep the existing download functionality too.
+         */
+
+        const blob =
+            new Blob(
+                [
+                    JSON.stringify(
+                        output,
+                        null,
+                        2
+                    )
+                ],
+                {
+                    type:
+                        "application/json"
+                }
+            );
+
+        const url =
+            URL.createObjectURL(blob);
+
+        const a =
+            document.createElement("a");
+
+        a.href = url;
+
+        a.download =
+            "dash_playback_trace.json";
+
+        document.body.appendChild(a);
+
+        a.click();
+
+        a.remove();
+
+        URL.revokeObjectURL(url);
+
+    } catch (error) {
+
+        log(
+            "DASH -> P.1203 ERROR: " +
+            error.message
+        );
+
+        console.error(
+            "DASH -> P.1203 ERROR:",
+            error
+        );
+    }
+}
+
+function clearTrace() {
+
+    trace.length = 0;
+
+    logElement.textContent = "";
+
+    log("Trace cleared.");
+}
+
+
+window.downloadTrace =
+    downloadTrace;
+
+window.clearTrace =
+    clearTrace;
+
+
+player.initialize(
+    video,
+    MPD_URL,
+    false
+);
+
+log("Player initialized.");
+
+log(
+    "MPD: " +
+    MPD_URL
+);
+
+</script>
+
+</body>
+</html>

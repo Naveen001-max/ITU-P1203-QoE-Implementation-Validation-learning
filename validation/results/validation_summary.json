@@ -1,0 +1,242 @@
+[
+  {
+    "mode": "mode0",
+    "input_cases": 314,
+    "successful": 314,
+    "failed": 0,
+    "summary": [
+      {
+        "mode": "mode0",
+        "metric": "O23",
+        "cases": 314,
+        "mae": 0.00794593054911598,
+        "rmse": 0.024940900690017326,
+        "max_error": 0.13926317525090193,
+        "within_0.001_pct": 80.2547770700637,
+        "within_0.01_pct": 83.43949044585987,
+        "within_0.05_pct": 94.90445859872611
+      },
+      {
+        "mode": "mode0",
+        "metric": "O35",
+        "cases": 314,
+        "mae": 0.0,
+        "rmse": 0.0,
+        "max_error": 0.0,
+        "within_0.001_pct": 100.0,
+        "within_0.01_pct": 100.0,
+        "within_0.05_pct": 100.0
+      },
+      {
+        "mode": "mode0",
+        "metric": "O46",
+        "cases": 314,
+        "mae": 0.04218514599120912,
+        "rmse": 0.0526909580939375,
+        "max_error": 0.26796010170588014,
+        "within_0.001_pct": 0.0,
+        "within_0.01_pct": 5.732484076433121,
+        "within_0.05_pct": 80.89171974522293
+      },
+      {
+        "mode": "mode0",
+        "metric": "O34_sequence",
+        "cases": 314,
+        "mae": 0.0,
+        "rmse": 0.0,
+        "max_error": 0.0,
+        "within_0.001_pct": 100.0,
+        "within_0.01_pct": 100.0,
+        "within_0.05_pct": 100.0
+      }
+    ],
+    "mos": {
+      "mode": "mode0",
+      "cases": 239,
+      "MAE": 0.39875091256002754,
+      "RMSE": 0.5128273257780647,
+      "Pearson": 0.8542315942193254,
+      "Spearman": 0.8253221346884504
+    }
+  },
+  {
+    "mode": "mode1",
+    "input_cases": 314,
+    "successful": 314,
+    "failed": 0,
+    "summary": [
+      {
+        "mode": "mode1",
+        "metric": "O23",
+        "cases": 314,
+        "mae": 0.007874218460206752,
+        "rmse": 0.02457702848683611,
+        "max_error": 0.12873706587270473,
+        "within_0.001_pct": 80.2547770700637,
+        "within_0.01_pct": 83.43949044585987,
+        "within_0.05_pct": 94.90445859872611
+      },
+      {
+        "mode": "mode1",
+        "metric": "O35",
+        "cases": 314,
+        "mae": 0.0,
+        "rmse": 0.0,
+        "max_error": 0.0,
+        "within_0.001_pct": 100.0,
+        "within_0.01_pct": 100.0,
+        "within_0.05_pct": 100.0
+      },
+      {
+        "mode": "mode1",
+        "metric": "O46",
+        "cases": 314,
+        "mae": 0.03795255120229681,
+        "rmse": 0.047790980529283,
+        "max_error": 0.21974983368393763,
+        "within_0.001_pct": 0.0,
+        "within_0.01_pct": 7.006369426751593,
+        "within_0.05_pct": 83.43949044585987
+      },
+      {
+        "mode": "mode1",
+        "metric": "O34_sequence",
+        "cases": 314,
+        "mae": 0.0,
+        "rmse": 0.0,
+        "max_error": 0.0,
+        "within_0.001_pct": 100.0,
+        "within_0.01_pct": 100.0,
+        "within_0.05_pct": 100.0
+      }
+    ],
+    "mos": {
+      "mode": "mode1",
+      "cases": 239,
+      "MAE": 0.38906712228927204,
+      "RMSE": 0.496845020452926,
+      "Pearson": 0.8646059519749144,
+      "Spearman": 0.8442473439961398
+    }
+  },
+  {
+    "mode": "mode2",
+    "input_cases": 314,
+    "successful": 314,
+    "failed": 0,
+    "summary": [
+      {
+        "mode": "mode2",
+        "metric": "O23",
+        "cases": 314,
+        "mae": 0.007874218460206752,
+        "rmse": 0.02457702848683611,
+        "max_error": 0.12873706587270473,
+        "within_0.001_pct": 80.2547770700637,
+        "within_0.01_pct": 83.43949044585987,
+        "within_0.05_pct": 94.90445859872611
+      },
+      {
+        "mode": "mode2",
+        "metric": "O35",
+        "cases": 314,
+        "mae": 0.0,
+        "rmse": 0.0,
+        "max_error": 0.0,
+        "within_0.001_pct": 100.0,
+        "within_0.01_pct": 100.0,
+        "within_0.05_pct": 100.0
+      },
+      {
+        "mode": "mode2",
+        "metric": "O46",
+        "cases": 314,
+        "mae": 0.038878012084110895,
+        "rmse": 0.051439428409401515,
+        "max_error": 0.264717290070033,
+        "within_0.001_pct": 0.0,
+        "within_0.01_pct": 5.095541401273885,
+        "within_0.05_pct": 84.07643312101911
+      },
+      {
+        "mode": "mode2",
+        "metric": "O34_sequence",
+        "cases": 314,
+        "mae": 0.0,
+        "rmse": 0.0,
+        "max_error": 0.0,
+        "within_0.001_pct": 100.0,
+        "within_0.01_pct": 100.0,
+        "within_0.05_pct": 100.0
+      }
+    ],
+    "mos": {
+      "mode": "mode2",
+      "cases": 239,
+      "MAE": 0.37433191696825646,
+      "RMSE": 0.46890138876133136,
+      "Pearson": 0.8804381793171948,
+      "Spearman": 0.8702873112321418
+    }
+  },
+  {
+    "mode": "mode3",
+    "input_cases": 314,
+    "successful": 314,
+    "failed": 0,
+    "summary": [
+      {
+        "mode": "mode3",
+        "metric": "O23",
+        "cases": 314,
+        "mae": 0.007874218460206752,
+        "rmse": 0.02457702848683611,
+        "max_error": 0.12873706587270473,
+        "within_0.001_pct": 80.2547770700637,
+        "within_0.01_pct": 83.43949044585987,
+        "within_0.05_pct": 94.90445859872611
+      },
+      {
+        "mode": "mode3",
+        "metric": "O35",
+        "cases": 314,
+        "mae": 0.0,
+        "rmse": 0.0,
+        "max_error": 0.0,
+        "within_0.001_pct": 100.0,
+        "within_0.01_pct": 100.0,
+        "within_0.05_pct": 100.0
+      },
+      {
+        "mode": "mode3",
+        "metric": "O46",
+        "cases": 314,
+        "mae": 0.03600928657318814,
+        "rmse": 0.04820899530197929,
+        "max_error": 0.2587838673696585,
+        "within_0.001_pct": 0.6369426751592356,
+        "within_0.01_pct": 7.643312101910828,
+        "within_0.05_pct": 85.35031847133757
+      },
+      {
+        "mode": "mode3",
+        "metric": "O34_sequence",
+        "cases": 314,
+        "mae": 0.0,
+        "rmse": 0.0,
+        "max_error": 0.0,
+        "within_0.001_pct": 100.0,
+        "within_0.01_pct": 100.0,
+        "within_0.05_pct": 100.0
+      }
+    ],
+    "mos": {
+      "mode": "mode3",
+      "cases": 239,
+      "MAE": 0.3961489050259408,
+      "RMSE": 0.49672747820354973,
+      "Pearson": 0.8875943287068525,
+      "Spearman": 0.8848436035478086
+    }
+  }
+]
